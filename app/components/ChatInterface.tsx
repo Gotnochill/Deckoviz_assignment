@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react'
 
 type Role = 'user' | 'assistant'
 
@@ -20,10 +20,23 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  function resizeTextarea() {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`
+  }
+
+  function handleChange(e: ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value)
+    resizeTextarea()
+  }
 
   function send() {
     const text = input.trim()
@@ -34,6 +47,10 @@ export default function ChatInterface() {
       { id: Date.now().toString(), role: 'user', content: text },
     ])
     setInput('')
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
 
     setTimeout(() => {
       setMessages(prev => [
@@ -55,16 +72,14 @@ export default function ChatInterface() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-screen bg-white">
       <header className="shrink-0 border-b border-[#e2e2e2] px-6 py-4">
-        <span
-          className="text-[#3daa6e] text-sm tracking-[0.2em] uppercase font-sans"
-        >
+        <span className="text-[#3daa6e] text-sm tracking-[0.2em] uppercase font-sans">
           Vizzy
         </span>
       </header>
 
-      <section className="flex-1 overflow-y-auto px-6 py-8 space-y-3">
+      <section className="flex-1 min-h-0 overflow-y-auto px-6 py-8 space-y-3">
         {messages.map(msg => (
           <div
             key={msg.id}
@@ -86,12 +101,13 @@ export default function ChatInterface() {
 
       <div className="shrink-0 border-t border-[#e2e2e2] px-6 py-4 flex items-end gap-4">
         <textarea
+          ref={textareaRef}
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKey}
           placeholder="Describe what you want to create..."
           rows={1}
-          className="flex-1 resize-none bg-transparent text-sm text-[#111111] placeholder-[#aaaaaa] outline-none leading-relaxed font-sans max-h-32 overflow-y-auto"
+          className="flex-1 resize-none bg-transparent text-sm text-[#111111] placeholder-[#aaaaaa] outline-none leading-relaxed font-sans overflow-hidden"
         />
         <button
           onClick={send}
