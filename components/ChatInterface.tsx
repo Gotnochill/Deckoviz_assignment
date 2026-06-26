@@ -65,14 +65,19 @@ export default function ChatInterface() {
 
       const data = await res.json()
 
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Server error')
+      }
+
       setMessages(prev =>
         prev.map(m =>
           m.id === loadingId
-            ? { ...m, content: data.reply ?? 'Done.', imageUrl: data.imageUrl ?? undefined, loading: false }
+            ? { ...m, content: data.reply ?? 'Creating your visual...', imageUrl: data.imageUrl ?? undefined, loading: false }
             : m
         )
       )
     } catch {
+      setInput(text)
       setMessages(prev =>
         prev.map(m =>
           m.id === loadingId

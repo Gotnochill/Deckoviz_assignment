@@ -23,7 +23,8 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: message }],
     })
 
-    const raw = completion.content[0].type === 'text' ? completion.content[0].text : ''
+    const textBlock = completion.content.find(b => b.type === 'text')
+    const raw = textBlock?.type === 'text' ? textBlock.text : ''
 
     let reply = 'Creating your visual...'
     let imagePrompt = message
@@ -39,6 +40,9 @@ export async function POST(req: NextRequest) {
     let imageUrl: string | null = null
 
     try {
+      const controller = new AbortController()
+      const hfTimeout = setTimeout(() => controller.abort(), 45_000)
+
       const hfRes = await fetch(
         'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
         {
@@ -48,13 +52,17 @@ export async function POST(req: NextRequest) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ inputs: imagePrompt }),
+          signal: controller.signal,
         }
       )
 
+      clearTimeout(hfTimeout)
+
       if (hfRes.ok) {
+        const mimeType = hfRes.headers.get('content-type') ?? 'image/png'
         const buffer = await hfRes.arrayBuffer()
         const base64 = Buffer.from(buffer).toString('base64')
-        imageUrl = `data:image/jpeg;base64,${base64}`
+        imageUrl = `data:${mimeType};base64,${base64}`
       } else {
         console.error('HuggingFace error:', await hfRes.text())
       }
