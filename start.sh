@@ -1,6 +1,6 @@
 #!/bin/bash
 # Stop any running server first
-bash end.sh 2>/dev/null
+bash end.sh
 
 echo "Starting Vizzy dev server..."
 
