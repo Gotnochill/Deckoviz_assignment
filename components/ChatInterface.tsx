@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react'
+import Image from 'next/image'
 
 type Role = 'user' | 'assistant'
 
@@ -8,6 +9,8 @@ interface Message {
   id: string
   role: Role
   content: string
+  imageUrl?: string
+  loading?: boolean
 }
 
 const WELCOME: Message = {
@@ -19,6 +22,7 @@ const WELCOME: Message = {
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -38,30 +42,47 @@ export default function ChatInterface() {
     resizeTextarea()
   }
 
-  function send() {
+  async function send() {
     const text = input.trim()
-    if (!text) return
+    if (!text || isGenerating) return
 
-    setMessages(prev => [
-      ...prev,
-      { id: Date.now().toString(), role: 'user', content: text },
-    ])
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text }
+    const loadingId = `loading-${Date.now()}`
+    const loadingMsg: Message = { id: loadingId, role: 'assistant', content: '', loading: true }
+
+    setMessages(prev => [...prev, userMsg, loadingMsg])
     setInput('')
+    setIsGenerating(true)
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+
+      const data = await res.json()
+
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === loadingId
+            ? { ...m, content: data.reply ?? 'Done.', imageUrl: data.imageUrl ?? undefined, loading: false }
+            : m
+        )
+      )
+    } catch {
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === loadingId
+            ? { ...m, content: 'Something went wrong. Please try again.', loading: false }
+            : m
+        )
+      )
+    } finally {
+      setIsGenerating(false)
     }
-
-    setTimeout(() => {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: 'On it. Your visual is being prepared.',
-        },
-      ])
-    }, 500)
   }
 
   function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -79,21 +100,47 @@ export default function ChatInterface() {
         </span>
       </header>
 
-      <section className="flex-1 min-h-0 overflow-y-auto px-6 py-8 space-y-3">
+      <section className="flex-1 min-h-0 overflow-y-auto px-6 py-8 space-y-4">
         {messages.map(msg => (
           <div
             key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
-            <p
-              className={`max-w-[60%] px-4 py-3 text-sm leading-relaxed font-serif rounded-sm ${
-                msg.role === 'user'
-                  ? 'bg-[#3daa6e] text-white'
-                  : 'bg-[#f5f5f5] text-[#111111]'
-              }`}
-            >
-              {msg.content}
-            </p>
+            {msg.loading ? (
+              <div className="px-4 py-3 bg-[#f5f5f5] rounded-sm">
+                <span className="flex gap-1 items-center h-4">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#aaaaaa] animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#aaaaaa] animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#aaaaaa] animate-bounce [animation-delay:300ms]" />
+                </span>
+              </div>
+            ) : (
+              <>
+                {msg.content && (
+                  <p
+                    className={`max-w-[60%] px-4 py-3 text-sm leading-relaxed font-serif rounded-sm ${
+                      msg.role === 'user'
+                        ? 'bg-[#3daa6e] text-white'
+                        : 'bg-[#f5f5f5] text-[#111111]'
+                    }`}
+                  >
+                    {msg.content}
+                  </p>
+                )}
+                {msg.imageUrl && (
+                  <div className="mt-2 max-w-[60%]">
+                    <Image
+                      src={msg.imageUrl}
+                      alt="Generated visual"
+                      width={512}
+                      height={512}
+                      className="w-full rounded-sm"
+                      unoptimized
+                    />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         ))}
         <div ref={bottomRef} />
@@ -107,14 +154,15 @@ export default function ChatInterface() {
           onKeyDown={handleKey}
           placeholder="Describe what you want to create..."
           rows={1}
-          className="flex-1 resize-none bg-transparent text-sm text-[#111111] placeholder-[#aaaaaa] outline-none leading-relaxed font-sans overflow-hidden"
+          disabled={isGenerating}
+          className="flex-1 resize-none bg-transparent text-sm text-[#111111] placeholder-[#aaaaaa] outline-none leading-relaxed font-sans overflow-hidden disabled:opacity-50"
         />
         <button
           onClick={send}
-          disabled={!input.trim()}
+          disabled={!input.trim() || isGenerating}
           className="shrink-0 text-sm font-sans text-[#3daa6e] disabled:text-[#cccccc] transition-colors cursor-pointer disabled:cursor-default"
         >
-          Send
+          {isGenerating ? 'Generating...' : 'Send'}
         </button>
       </div>
     </div>
