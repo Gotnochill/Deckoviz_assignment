@@ -36,27 +36,31 @@ export async function POST(req: NextRequest) {
       reply = raw.slice(0, 200)
     }
 
-    const hfRes = await fetch(
-      'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ inputs: imagePrompt }),
+    let imageUrl: string | null = null
+
+    try {
+      const hfRes = await fetch(
+        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ inputs: imagePrompt }),
+        }
+      )
+
+      if (hfRes.ok) {
+        const buffer = await hfRes.arrayBuffer()
+        const base64 = Buffer.from(buffer).toString('base64')
+        imageUrl = `data:image/jpeg;base64,${base64}`
+      } else {
+        console.error('HuggingFace error:', await hfRes.text())
       }
-    )
-
-    if (!hfRes.ok) {
-      const err = await hfRes.text()
-      console.error('HuggingFace error:', err)
-      return NextResponse.json({ reply, imageUrl: null })
+    } catch (hfErr) {
+      console.error('HuggingFace unreachable:', hfErr)
     }
-
-    const buffer = await hfRes.arrayBuffer()
-    const base64 = Buffer.from(buffer).toString('base64')
-    const imageUrl = `data:image/jpeg;base64,${base64}`
 
     return NextResponse.json({ reply, imageUrl })
   } catch (err) {
