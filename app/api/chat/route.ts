@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
-export const maxDuration = 60
-
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const SYSTEM = `You are Vizzy, a visual creative AI. When the user describes something they want to create or visualize, output ONLY a raw JSON object. No markdown fences, no explanation, no text before or after the JSON.
@@ -38,38 +36,7 @@ export async function POST(req: NextRequest) {
       reply = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim().slice(0, 200)
     }
 
-    let imageUrl: string | null = null
-
-    try {
-      const controller = new AbortController()
-      const falTimeout = setTimeout(() => controller.abort(), 45_000)
-
-      const falRes = await fetch('https://fal.run/fal-ai/flux/schnell', {
-        method: 'POST',
-        headers: {
-          Authorization: `Key ${process.env.FAL_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: imagePrompt,
-          image_size: 'square_hd',
-          num_inference_steps: 4,
-          num_images: 1,
-        }),
-        signal: controller.signal,
-      })
-
-      clearTimeout(falTimeout)
-
-      if (falRes.ok) {
-        const falData = await falRes.json()
-        imageUrl = falData.images?.[0]?.url ?? null
-      } else {
-        console.error('fal.ai error:', await falRes.text())
-      }
-    } catch (falErr) {
-      console.error('fal.ai unreachable:', falErr)
-    }
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1024&height=1024&model=flux&nologo=true`
 
     return NextResponse.json({ reply, imageUrl })
   } catch (err) {
