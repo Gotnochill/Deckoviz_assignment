@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
+export const maxDuration = 60
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const SYSTEM = `You are Vizzy, a visual creative AI. When the user describes something they want to create or visualize, output ONLY a raw JSON object. No markdown fences, no explanation, no text before or after the JSON.
@@ -36,7 +38,38 @@ export async function POST(req: NextRequest) {
       reply = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim().slice(0, 200)
     }
 
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1024&height=1024&model=flux&nologo=true`
+    let imageUrl: string | null = null
+
+    try {
+      const controller = new AbortController()
+      const hfTimeout = setTimeout(() => controller.abort(), 45_000)
+
+      const hfRes = await fetch(
+        'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ inputs: imagePrompt }),
+          signal: controller.signal,
+        }
+      )
+
+      clearTimeout(hfTimeout)
+
+      if (hfRes.ok) {
+        const mimeType = hfRes.headers.get('content-type') ?? 'image/png'
+        const buffer = await hfRes.arrayBuffer()
+        const base64 = Buffer.from(buffer).toString('base64')
+        imageUrl = `data:${mimeType};base64,${base64}`
+      } else {
+        console.error('HuggingFace error:', await hfRes.text())
+      }
+    } catch (hfErr) {
+      console.error('HuggingFace unreachable:', hfErr)
+    }
 
     return NextResponse.json({ reply, imageUrl })
   } catch (err) {
