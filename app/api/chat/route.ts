@@ -42,33 +42,33 @@ export async function POST(req: NextRequest) {
 
     try {
       const controller = new AbortController()
-      const hfTimeout = setTimeout(() => controller.abort(), 45_000)
+      const falTimeout = setTimeout(() => controller.abort(), 45_000)
 
-      const hfRes = await fetch(
-        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ inputs: imagePrompt }),
-          signal: controller.signal,
-        }
-      )
+      const falRes = await fetch('https://fal.run/fal-ai/flux/schnell', {
+        method: 'POST',
+        headers: {
+          Authorization: `Key ${process.env.FAL_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: imagePrompt,
+          image_size: 'square_hd',
+          num_inference_steps: 4,
+          num_images: 1,
+        }),
+        signal: controller.signal,
+      })
 
-      clearTimeout(hfTimeout)
+      clearTimeout(falTimeout)
 
-      if (hfRes.ok) {
-        const mimeType = hfRes.headers.get('content-type') ?? 'image/png'
-        const buffer = await hfRes.arrayBuffer()
-        const base64 = Buffer.from(buffer).toString('base64')
-        imageUrl = `data:${mimeType};base64,${base64}`
+      if (falRes.ok) {
+        const falData = await falRes.json()
+        imageUrl = falData.images?.[0]?.url ?? null
       } else {
-        console.error('HuggingFace error:', await hfRes.text())
+        console.error('fal.ai error:', await falRes.text())
       }
-    } catch (hfErr) {
-      console.error('HuggingFace unreachable:', hfErr)
+    } catch (falErr) {
+      console.error('fal.ai unreachable:', falErr)
     }
 
     return NextResponse.json({ reply, imageUrl })
