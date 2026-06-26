@@ -5,8 +5,8 @@ export const maxDuration = 60
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const SYSTEM = `You are Vizzy, a visual creative AI. When the user describes something they want to create or visualize, respond with valid JSON only — no markdown, no extra text.
-Format: {"reply": "one warm sentence acknowledging what you are creating", "prompt": "detailed image generation prompt for Flux, rich in subject, style, lighting, color, composition — 80 to 120 words"}`
+const SYSTEM = `You are Vizzy, a visual creative AI. When the user describes something they want to create or visualize, output ONLY a raw JSON object. No markdown fences, no explanation, no text before or after the JSON.
+Output format (raw JSON, nothing else): {"reply": "one warm sentence acknowledging what you are creating", "prompt": "detailed image generation prompt for Flux, rich in subject, style, lighting, color, composition — 80 to 120 words"}`
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,11 +30,12 @@ export async function POST(req: NextRequest) {
     let imagePrompt = message
 
     try {
-      const parsed = JSON.parse(raw)
+      const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+      const parsed = JSON.parse(stripped)
       reply = parsed.reply ?? reply
       imagePrompt = parsed.prompt ?? imagePrompt
     } catch {
-      reply = raw.slice(0, 200)
+      reply = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim().slice(0, 200)
     }
 
     let imageUrl: string | null = null
